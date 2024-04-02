@@ -1,5 +1,5 @@
 theory SorobanAMM
-  imports Complex_Main  "HOL-Statespace.StateSpaceSyntax"
+  imports Complex_Main "HOL-Statespace.StateSpaceSyntax"
 begin
 
 sledgehammer_params [timeout=300]
@@ -52,7 +52,9 @@ proof -
     by (metis \<open>ra \<noteq> 0 \<or> rb \<noteq> 0 \<longrightarrow> a * rb = b * ra\<close> add_cancel_left_right mult.commute ring_class.ring_distribs(1))
 qed
 
-definition deposit_amounts_2 where
+definition deposit_amounts_2 
+  \<comment> \<open>Now we round to integers\<close>
+  where
   "deposit_amounts_2 desired_a min_a desired_b min_b reserve_a reserve_b \<equiv>
     if (reserve_a = 0 \<and> reserve_b = 0)
     then Some (desired_a, desired_b)
@@ -109,7 +111,7 @@ definition new_total_shares where
 
 lemma deposit_lemma:
   assumes "da \<ge> (0::real)" and "db \<ge> 0" and "ma \<ge> 0" and "mb \<ge> 0" and "ra \<ge> a" and "rb \<ge> 0"
-    and "ma \<le> da" and "mb \<le> db" and "s \<ge> 0" and "(ra = 0) \<longleftrightarrow> (rb = 0)"
+    and "ma \<le> da" and "mb \<le> db" and "s \<ge> 0" and "(ra = 0) \<longleftrightarrow> (rb = 0)" \<comment> \<open>note we need this invariant\<close>
     and "deposit_amounts da ma db mb ra rb = Some (a, b)"
     and "new_total_shares ra (ra+a) rb (rb+b) s = ns"
   shows "ra*ns = (ra+a)*s"
@@ -118,6 +120,9 @@ lemma deposit_lemma:
    apply (smt (verit, best) deposit_amounts_property(8) mult.commute nonzero_eq_divide_eq times_divide_eq_left)
   apply (smt (verit, best) deposit_amounts_property(1) mult_not_zero)
   done
+
+
+text \<open>The attacker buys shares and then sells them back in two steps. We want to check that no money is made by the attacker.\<close>
 
 statespace 'addr system =
   reserve_a :: real
@@ -151,12 +156,12 @@ definition (in system) deposit where
             \<and> (s'\<cdot>attacker_b) = (s\<cdot>attacker_b) - amount_b
             \<and> (let new_a = (s\<cdot>reserve_a)+amount_a;
                    new_b = (s\<cdot>reserve_b)+amount_b;
-                   new_shares = shares_to_mint (s\<cdot>reserve_a) new_a (s\<cdot>reserve_b) new_b (s\<cdot>total_shares)
+                   new_total_shares = new_total_shares (s\<cdot>reserve_a) new_a (s\<cdot>reserve_b) new_b (s\<cdot>total_shares)
                in
                   (s'\<cdot>reserve_a) = new_a
                 \<and> (s'\<cdot>reserve_b) = new_b
-                \<and> (s'\<cdot>total_shares) = (s\<cdot>total_shares)+new_shares
-                \<and> (s'\<cdot>attacker_shares) = (s\<cdot>attacker_shares)+new_shares)))"
+                \<and> (s'\<cdot>total_shares) = new_total_shares
+                \<and> (s'\<cdot>attacker_shares) = (s\<cdot>attacker_shares)+new_total_shares-(s\<cdot>total_shares))))"
 
 definition (in system) withdraw where
   "withdraw shrs min_a min_b s s' \<equiv>
@@ -174,10 +179,11 @@ definition (in system) withdraw where
 lemma (in system) deposit_withdraw:
   assumes "deposit a b ma mb s s'" and "withdraw (s'\<cdot>attacker_shares) min_a min_b s' s''"
     and "s\<cdot>attacker_shares = 0" and "s''\<cdot>attacker_shares = 0"
-  shows "s''\<cdot>attacker_a \<ge> s\<cdot>attacker_a"
+  shows "s''\<cdot>attacker_a \<le> s\<cdot>attacker_a"
   using assms
-  unfolding deposit_def withdraw_def shares_to_mint_def
+  unfolding deposit_def withdraw_def
   apply (simp split:if_splits option.splits add:Let_def split_def)
   apply auto
+  oops \<comment> \<open>We are going to need more lemmas for this\<close>
 
-text \<open>The attacker buys shares and then sells them back in two steps. We want to check that no money is made by the attacker.\<close>
+end
